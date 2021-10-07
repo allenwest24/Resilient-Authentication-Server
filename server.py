@@ -1,13 +1,18 @@
 import os
 import sys
+import toml
+import bcrypt
 import socket
+import hashlib
 import messages_pb2
 import _thread as thread
 from io import StringIO
+from passlib.hash import argon2
 
 # Define global variables.
 block_list = []
 invalid_tracker = {}
+database = toml.load("user_database.toml")
 
 # Tally invalid requests by IP.
 def tally_invalid(ip):
@@ -29,11 +34,53 @@ def tally_invalid(ip):
 # Checks the database to authenticate and returns True or False.
 # TODO: Check against the actual database. To include tallying for invalid requests.
 def authenticate(username, password, ip):
-    # Does not contain a username or password.
-    if len(username) == 0 or  len(password) == 0:
-        #tally_invalid(ip)
+    global database
+    users = database['users']
+
+    # If a username or password were not provided we don't need to check.
+    if len(username) == 0 or len(password) == 0:
+        tally_invalid(ip)
         return False
-    return True
+
+    # Find the specified user and pull up the hashed password.
+    user_found = False
+    for ii in range(len(users)):
+        if users[ii]['username'] == username:
+            stored_hash = users[ii]['password_hash']
+            user_found = True
+            break
+
+    # If there was no user by that name the request is invalid.
+    if not user_found:
+        tally_invalid(ip)
+        return False
+
+    # Creating the byte versions of some variables so it just needs to be done once.
+    passAsBytes = bytes(password, 'utf-8')
+    storedHashAsBytes = bytes(stored_hash, 'utf-8')
+
+    # Checking with supported hash functions to see if any match.
+    # SHA256.
+    if stored_hash == hashlib.sha256(passAsBytes).hexdigest():
+        return True
+    # SHA512.
+    elif stored_hash == hashlib.sha512(passAsBytes).hexdigest():
+        return True
+    # bcrypt.
+    try:
+        if (bcrypt.checkpw(passAsBytes, storedHashAsBytes)):
+            return True
+    except:
+        pass
+    # Argon2.
+    try:
+        argon2.verify(password, stored_hash)
+        return True
+    except:
+        pass
+
+    # If we got here then the password is wrong.
+    return False
 
 # Upon proper authentication, an expression will be ran in an interpreter and the result will be returned.
 def execute_expression(expression):
@@ -82,6 +129,8 @@ def reset_block_list():
 def handle_expression(req, ip):
     # Check if the credentials are valid.
     authenticated = authenticate(req.expr.username, req.expr.password, ip)
+    if not authenticated:
+        tall_invalid(ip)
     
     # Either way, we will need to craft an ExpressionResponse.
     response = messages_pb2.Response()
@@ -141,7 +190,7 @@ def handle_client_req(connection, client_address):
         data, code = handle_request_forge_response(msg, client_address[0])
     except:
         # Failure to parse.
-        tally_invalid(client_address[0])
+        #tally_invalid(client_address[0])
         response = messages_pb2.Response()
         expr_response = messages_pb2.ExpressionResponse()
         expr_response.authenticated = False

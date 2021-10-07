@@ -1,0 +1,11 @@
+[[users]]
+username = "mario"
+# password = "m4mmAM!4$$$"
+#password_hash = "$argon2id$v=19$m=102400,t=2,p=8$Zwzh3HsPQcj5fw/hfK+1Fg$xjJOvlBbDDxe3InW2Tm17Q"
+#password_hash = "c73b63d6e4d8622e12216d54ba5fe43a73049bea39fb21ace1ef4b0f1e4fde7a"
+password_hash = "$2b$12$CLYkpvfeAs8nEuDa/XuAoeoH5N9.AXjBBiQqpakQKizOr4cRhPg1G"
+
+[[users]]
+username = "luigi"
+# password = "super plumber luigi time"
+password_hash = "$5$rounds=535000$TqX3t1a9E3VMMzdV$Yv3cImIQytnyRxziLj2hgb.G4Vd2LRsOxNjldrzy/g5"

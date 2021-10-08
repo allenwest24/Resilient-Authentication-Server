@@ -9,10 +9,17 @@ import _thread as thread
 from io import StringIO
 from passlib.hash import argon2
 
-# Define global variables.
+# Define global data structures.
 block_list = []
 invalid_tracker = {}
-database = toml.load("user_database.toml")
+seen = []
+
+# Take in the user database via the command line.
+if len(sys.argv) >= 2:
+    database_location = sys.argv[1]
+else:
+    database_location = "./users.toml"
+database = toml.load(database_location)
 
 # Tally invalid requests by IP.
 def tally_invalid(ip):
@@ -32,14 +39,12 @@ def tally_invalid(ip):
     print(invalid_tracker)
 
 # Checks the database to authenticate and returns True or False.
-# TODO: Check against the actual database. To include tallying for invalid requests.
 def authenticate(username, password, ip):
     global database
     users = database['users']
 
     # If a username or password were not provided we don't need to check.
     if len(username) == 0 or len(password) == 0:
-        tally_invalid(ip)
         return False
 
     # Find the specified user and pull up the hashed password.
@@ -52,7 +57,6 @@ def authenticate(username, password, ip):
 
     # If there was no user by that name the request is invalid.
     if not user_found:
-        tally_invalid(ip)
         return False
 
     # Creating the byte versions of some variables so it just needs to be done once.
@@ -129,8 +133,6 @@ def reset_block_list():
 def handle_expression(req, ip):
     # Check if the credentials are valid.
     authenticated = authenticate(req.expr.username, req.expr.password, ip)
-    if not authenticated:
-        tall_invalid(ip)
     
     # Either way, we will need to craft an ExpressionResponse.
     response = messages_pb2.Response()
@@ -143,7 +145,6 @@ def handle_expression(req, ip):
         
         # If there was a problem executing the expression, this is an invalid message.
         if result == 'error':
-            tally_invalid(ip)
             expr_response.authenticated = False
         # Otherwise, we want the result.
         else:
@@ -181,16 +182,17 @@ def handle_client_req(connection, client_address):
 
     # Get the actual request and parse it into the protobuf msg.
     req = connection.recv(req_size)
+    print(req)
     msg = messages_pb2.Request()
+
+    # Try to parse, don't authenticate if you can't.
     try:
         msg.ParseFromString(req)
-        print(msg)
 
         # Branch off and handle.
         data, code = handle_request_forge_response(msg, client_address[0])
     except:
         # Failure to parse.
-        #tally_invalid(client_address[0])
         response = messages_pb2.Response()
         expr_response = messages_pb2.ExpressionResponse()
         expr_response.authenticated = False
@@ -198,6 +200,12 @@ def handle_client_req(connection, client_address):
         data = response
         code = 0
 
+    # Tally if this is an invalid request.
+    if data.HasField('expr'):
+        if not data.expr.authenticated:
+            tally_invalid(client_address[0])
+
+    # Prep and send response.
     data = data.SerializeToString()
     data_length = len(data).to_bytes(2, 'big')
     connection.send(data_length + data)
@@ -210,13 +218,9 @@ def handle_client_req(connection, client_address):
 
 # Starts the server and listens on the designated port.
 def start_server(ip, port):
-    server_ip = ip
-    bind_port = port
-
     # Open a socket and bind it to the server specifications.
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # TODO: make sure localhost is what we want always or take in input.
-    server_address = ('127.0.0.1', bind_port)
+    server_address = (ip, port)
     sock.bind(server_address)
 
     # Listens for a single connection and prints out what it receives.
@@ -230,7 +234,7 @@ def start_server(ip, port):
 
 # Main method.
 def main():
-    # TODO: Take in port from the command line.
+    # TODO: grab this portion from the docker container.
     start_server('127.0.0.1', 13000)
 
 if __name__ == "__main__":

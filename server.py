@@ -7,6 +7,7 @@ import hashlib
 import messages_pb2
 from io import StringIO
 import _thread as thread
+from datetime import datetime
 from passlib.hash import argon2
 
 # Define global data structures.
@@ -25,16 +26,25 @@ def tally_invalid(ip):
     global invalid_tracker
     global block_list
 
+    # Grab the time in seconds to timestamp the invalid request.
+    now = datetime.now()
+    hour = now.hour
+    minute = now.minute
+    second = now.second
+    time = second + (minute * 60) + (hour * 360)
+
     # Add a tally to this IP on the invalid list.
     if ip in invalid_tracker:
-        invalid_tracker[ip] += 1
+        invalid_tracker[ip].append(time)
     else:
-        invalid_tracker[ip] = 1
+        invalid_tracker[ip] = []
+        invalid_tracker[ip].append(time)
 
     # If this is the 30th offense, block the ip.
-    if invalid_tracker[ip] >= 30:
-        if ip not in block_list:
-            block_list.append(ip)
+    if len(invalid_tracker[ip]) >= 30:
+        if time - invalid_tracker[ip][len(invalid_tracker[ip]) - 29] <= 60:
+            if ip not in block_list:
+                block_list.append(ip)
 
 # Checks the database to authenticate and returns True or False.
 def authenticate(username, password, ip):
@@ -116,9 +126,13 @@ def stop():
 
 # Resets the block list upon request. Crafts ResetBlockListsResponse.
 def reset_block_list():
-    # Reference the global block list.
+    # Reference the global block list and invalid tracker.
     global block_list
+    global invalid_tracker
+
+    # Clear both lists.
     block_list = []
+    invalid_tracker = {}
 
     # Craft the response.
     response = messages_pb2.Response()

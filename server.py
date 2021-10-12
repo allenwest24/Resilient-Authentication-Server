@@ -5,14 +5,13 @@ import bcrypt
 import socket
 import hashlib
 import messages_pb2
-import _thread as thread
 from io import StringIO
+import _thread as thread
 from passlib.hash import argon2
 
 # Define global data structures.
 block_list = []
 invalid_tracker = {}
-seen = []
 
 # Take in the user database via the command line.
 if len(sys.argv) >= 2:
@@ -26,17 +25,16 @@ def tally_invalid(ip):
     global invalid_tracker
     global block_list
 
+    # Add a tally to this IP on the invalid list.
     if ip in invalid_tracker:
         invalid_tracker[ip] += 1
     else:
         invalid_tracker[ip] = 1
 
-    # TODO: Determine what to do when an IP is on the block list.
+    # If this is the 30th offense, block the ip.
     if invalid_tracker[ip] >= 30:
         if ip not in block_list:
             block_list.append(ip)
-            print(block_list)
-    print(invalid_tracker)
 
 # Checks the database to authenticate and returns True or False.
 def authenticate(username, password, ip):
@@ -182,12 +180,22 @@ def handle_client_req(connection, client_address):
 
     # Get the actual request and parse it into the protobuf msg.
     req = connection.recv(req_size)
-    print(req)
     msg = messages_pb2.Request()
+
+    # Determine if the sender ip is on the block list.
+    if client_address[0] in block_list:
+        ip_blocked = True
+    else:
+        ip_blocked = False
 
     # Try to parse, don't authenticate if you can't.
     try:
         msg.ParseFromString(req)
+
+        # If the sender ip is on the block list we honor stop and resetblocklist reqs but ignore expr and close the connection immediatly.
+        if ip_blocked and determine_req_type(msg) == 'expr':
+            connection.close()
+            return
 
         # Branch off and handle.
         data, code = handle_request_forge_response(msg, client_address[0])

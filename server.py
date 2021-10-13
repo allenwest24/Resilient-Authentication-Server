@@ -256,7 +256,6 @@ def start_server(ip, port):
 
 # Main method.
 def main():
-    # TODO: grab this portion from the docker container.
     start_server('127.0.0.1', 13000)
 
 if __name__ == "__main__":

@@ -33,5 +33,8 @@ Expression evaluation is implemented by executing a Python interpreter on the ex
 ## Defending Against Attacks:
 The service implements defenses against denial-of-service and password guessing attacks.
     
-    The server provides concurrent service for at least many clients through the use of multithreading.
-    The server identifies clients that send more than 30 invalid requests within the span of 60 seconds to the service, and permanently blocks those source IP addresses. Invalid requests are those that fail to parse, that do not contain a required field such as a username or password, that contain an invalid password, that contain an invalid expression, or have any other feature that prevents a successful response.
+    - The server provides concurrent service for at least many clients through the use of multithreading.
+    - The server identifies clients that send more than 30 invalid requests within the span of 60 seconds to the service, 
+    and permanently blocks those source IP addresses. Invalid requests are those that fail to parse, that do not contain 
+    a required field such as a username or password, that contain an invalid password, that contain an invalid expression, 
+    or have any other feature that prevents a successful response.

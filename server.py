@@ -215,12 +215,9 @@ def handle_client_req(connection, client_address):
         data, code = handle_request_forge_response(msg, client_address[0])
     except:
         # Failure to parse.
-        response = messages_pb2.Response()
-        expr_response = messages_pb2.ExpressionResponse()
-        expr_response.authenticated = False
-        response.expr.CopyFrom(expr_response)
-        data = response
-        code = 0
+        connection.close()
+        tally_invalid(client_address[0])
+        return
 
     # Tally if this is an invalid request.
     if data.HasField('expr'):
@@ -256,7 +253,7 @@ def start_server(ip, port):
 
 # Main method.
 def main():
-    start_server('127.0.0.1', 13000)
+    start_server('0.0.0.0', 13000)
 
 if __name__ == "__main__":
     main()
